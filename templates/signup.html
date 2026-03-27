@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Sign Up</title>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<div class="container">
+    <h1>Sign Up</h1>
+    <form method="POST">
+        <div class="glass-panel">
+            <input type="email" name="email" placeholder="Email" required>
+            <input type="password" name="password" placeholder="Password" required>
+            <button type="submit" class="ai-btn">Create Account</button>
+        </div>
+        <p>Already have an account? <a href="{{ url_for('login') }}" style="color:#00ffff;">Login</a></p>
+    </form>
+</div>
+</body>
+</html>

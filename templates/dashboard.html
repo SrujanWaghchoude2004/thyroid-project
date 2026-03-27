@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Thyroid Dashboard</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body>
+
+<div class="container" id="reportContainer">
+
+    <h1>Thyroid Health Dashboard</h1>
+
+    <!-- ================= FORM ================= -->
+    <form method="POST" enctype="multipart/form-data">
+        <div class="glass-panel">
+
+            <h2>Upload Lab Report</h2>
+            <input type="file" name="report" required>
+
+            {% if diagnosis in ['Hypothyroidism','Hyperthyroidism'] %}
+                <p style="color:yellow; font-size:18px;">
+                ⚠ Based on report, please go for ultrasound image analysis
+                </p>
+
+                <h3>Upload Ultrasound Image</h3>
+                <input type="file" name="ultrasound" required>
+            {% endif %}
+
+            <button type="submit" class="ai-btn">Analyze</button>
+
+        </div>
+    </form>
+
+    <!-- ================= REPORT ================= -->
+    {% if report_text %}
+    <div class="glass-panel" style="text-align:left;">
+        <h2>Lab Report</h2>
+        <pre style="font-size:1.1rem;">{{ report_text }}</pre>
+    </div>
+
+    <!-- ================= HORMONES ================= -->
+    <div class="hormone-panel">
+    <h3>Hormone Values</h3>
+
+    <p>
+        <strong>TSH:</strong> {{ TSH }}
+        <span class="status {{ TSH_status|lower }}">{{ TSH_status }}</span>
+    </p>
+
+    <p>
+        <strong>T3:</strong> {{ T3 }}
+        <span class="status {{ T3_status|lower }}">{{ T3_status }}</span>
+    </p>
+
+    <p>
+        <strong>T4:</strong> {{ T4 }}
+        <span class="status {{ T4_status|lower }}">{{ T4_status }}</span>
+    </p>
+</div>
+
+    <!-- ================= DIAGNOSIS ================= -->
+    <div class="glass-panel">
+        <h2>Diagnosis</h2>
+        <p>{{ diagnosis }}</p>
+    </div>
+
+    <!-- ================= AI EXPLANATION ================= -->
+    {% if ai_explanation %}
+    <div class="glass-panel">
+        <h2>AI Explanation</h2>
+        <p>{{ ai_explanation }}</p>
+    </div>
+    {% endif %}
+
+    <!-- ================= RISK SCORE ================= -->
+    {% if risk_score is not none %}
+    <div class="glass-panel">
+        <h2>Risk Score</h2>
+        <h1>{{ risk_score }}/100</h1>
+        {% if risk_score >= 70 %}
+        <p style="color:red;">High Risk</p>
+        {% elif risk_score >= 40 %}
+        <p style="color:orange;">Moderate Risk</p>
+        {% else %}
+        <p style="color:lightgreen;">Low Risk</p>
+        {% endif %}
+    </div>
+    {% endif %}
+
+
+    <!-- ================= CHART ================= -->
+    <div class="glass-panel">
+        <h2>Hormone Chart</h2>
+        <canvas id="chart"></canvas>
+    </div>
+
+    <!-- ================= ULTRASOUND ================= -->
+    {% if image_result %}
+    <div class="glass-panel">
+        <h2>Ultrasound Analysis</h2>
+        <p><strong>Shape:</strong> {{ image_result.shape }}</p>
+        <p><strong>Size:</strong> {{ image_result.size_mm }}</p>
+        <p><strong>Area:</strong> {{ image_result.area_px2 }}</p>
+        <p><strong>Volume:</strong> {{ image_result.volume_cc }}</p>
+        <p><strong>Nodule Type:</strong> {{ image_result.nodule_type }}</p>
+        <img src="{{ image_result.image }}" style="width:300px; border-radius:15px;">
+    </div>
+    {% endif %}
+
+    <!-- ================= NEXT STEPS / SUGGESTION ================= -->
+    <div class="glass-panel">
+        <h2>Next Steps / Suggestions</h2>
+
+        {% if diagnosis == "Hyperthyroidism" %}
+        <pre style="white-space: pre-wrap;">
+⚕ Based on your report:
+
+✅ Treatment options
+
+1. Medicines (first line)
+Methimazole or Propylthiouracil  
+These reduce hormone production
+
+2. Symptom control
+Propranolol  
+Helps control:
+- Fast heart rate
+- Anxiety
+- Tremors
+
+3. Radioactive iodine therapy (if needed)
+Gradually shrinks thyroid activity
+
+4. Surgery (rare cases)
+If:
+- Large goiter
+- Suspicion of cancer
+- Medication not working
+        </pre>
+
+        {% elif diagnosis == "Hypothyroidism" %}
+        <pre style="white-space: pre-wrap;">
+⚕ Based on your report:
+
+✅ Treatment
+Levothyroxine (daily, empty stomach)
+
+🧾 What you should do
+- Take medicine same time daily
+- Avoid calcium/iron for 30–60 minutes
+
+🔁 Follow-up
+- Blood tests every 6–8 weeks initially
+- Then every 6–12 months
+
+🍎 Lifestyle
+- Balanced diet (iodine, selenium)
+- Exercise regularly
+- Manage weight and fatigue
+        </pre>
+
+        {% else %}
+        <p>✅ Your thyroid seems normal. Maintain regular checkups.</p>
+        {% endif %}
+    </div>
+
+    <!-- ================= SYMPTOM-BASED INPUT ================= -->
+    <div class="glass-panel">
+        <h2>Enter Symptoms</h2>
+        <form id="symptomForm">
+            <textarea id="symptoms" placeholder="Describe your symptoms..." style="width:100%;height:80px;"></textarea>
+            <br>
+            <button type="button" onclick="predictSymptoms()" class="ai-btn">Predict Risk</button>
+        </form>
+        <p id="symptomPrediction" style="margin-top:10px; font-weight:bold;"></p>
+    </div>
+
+    <!-- ================= DOWNLOAD PROFESSIONAL REPORT ================= -->
+    <div class="glass-panel">
+        <h2>Download Professional Report</h2>
+        <form method="POST" action="{{ url_for('download_report') }}">
+            <input type="hidden" name="TSH" value="{{ TSH }}">
+            <input type="hidden" name="T3" value="{{ T3 }}">
+            <input type="hidden" name="T4" value="{{ T4 }}">
+            <input type="hidden" name="diagnosis" value="{{ diagnosis }}">
+            <input type="hidden" name="risk_score" value="{{ risk_score }}">
+            <input type="hidden" name="uploaded_image_url" value="{{ uploaded_image_url }}">
+            <input type="hidden" name="image_shape" value="{{ image_result.shape if image_result }}">
+            <input type="hidden" name="image_size" value="{{ image_result.size_mm if image_result }}">
+            <input type="hidden" name="image_area" value="{{ image_result.area_px2 if image_result }}">
+            <input type="hidden" name="image_volume" value="{{ image_result.volume_cc if image_result }}">
+            <input type="hidden" name="image_type" value="{{ image_result.nodule_type if image_result }}">
+            <input type="hidden" name="symptoms" id="hiddenSymptoms">
+            <button type="submit" class="ai-btn"
+                onclick="document.getElementById('hiddenSymptoms').value = document.getElementById('symptoms').value">
+                Download Report as JPG
+            </button>
+        </form>
+    </div>
+
+    {% endif %}
+
+</div>
+
+<!-- ================= CHART SCRIPT ================= -->
+<script>
+{% if TSH %}
+new Chart(document.getElementById("chart"), {
+    type: "bar",
+    data: {
+        labels: ["TSH","T3","T4"],
+        datasets: [{
+            label: "Hormone Levels",
+            data: [{{TSH}}, {{T3}}, {{T4}}],
+            backgroundColor: ["#00ffff","#ff00ff","#00ff9c"]
+        }]
+    },
+    options: {
+        responsive: true
+    }
+});
+{% endif %}
+
+// ================= SYMPTOM PREDICTION =================
+function predictSymptoms(){
+    const symptoms = document.getElementById("symptoms").value.toLowerCase();
+    let prediction = "No significant risk detected.";
+
+    const hypoSymptoms = ["fatigue","weight gain","cold intolerance","dry skin","hair loss","constipation","depression"];
+    const hyperSymptoms = ["weight loss","heat intolerance","palpitations","anxiety","tremors","sweating"];
+
+    for(let s of hypoSymptoms){
+        if(symptoms.includes(s)){
+            prediction = "Possible Hypothyroidism. Please consult a doctor.";
+            break;
+        }
+    }
+
+    if(prediction === "No significant risk detected."){
+        for(let s of hyperSymptoms){
+            if(symptoms.includes(s)){
+                prediction = "Possible Hyperthyroidism. Please consult a doctor.";
+                break;
+            }
+        }
+    }
+
+    document.getElementById("symptomPrediction").innerText = prediction;
+}
+</script>
+
+<!-- ================= DISCLAIMER ================= -->
+<div style="
+    position:fixed;
+    bottom:0;
+    left:0;
+    width:100%;
+    text-align:center;
+    font-size:12px;
+    color:gray;
+    padding:8px;
+    background:;
+">
+    This AI system may make mistakes. Please consult a doctor.
+</div>
+</body>
+</html>
