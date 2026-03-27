@@ -1,26 +1,9 @@
 import os
-import gdown
-
-os.makedirs("models", exist_ok=True)
-
-# CNN model
-cnn_model_path = "models/cnn_model.h5"
-if not os.path.exists(cnn_model_path):
-    url = "https://drive.google.com/uc?id=YOUR_FILE_ID"
-    gdown.download(url, cnn_model_path, quiet=False)
-
-# Improved model
-cnn_model_improved_path = "models/cnn_model_improved.h5"
-if not os.path.exists(cnn_model_improved_path):
-    url = "https://drive.google.com/uc?id=YOUR_FILE_ID_2"
-    gdown.download(url, cnn_model_improved_path, quiet=False)
-
-
 from flask import Flask, render_template, request, redirect, url_for, session, send_file
 from predict import extract_full_report, extract_thyroid_values, predict_thyroid, analyze_ultrasound
-import os
 from PIL import Image, ImageDraw, ImageFont
 import io
+import textwrap
 
 app = Flask(__name__)
 app.secret_key = "supersecretkey"
@@ -150,7 +133,7 @@ def dashboard():
                 if n_type == "benign":
                     ultrasound_suggestion = f"Ultrasound shows a {n_type} nodule ({shape}, {size}). Regular follow-up is recommended."
                 elif n_type == "malignant":
-                    ultrasound_suggestion = f"⚠ ALERT: Ultrasound indicates a {n_type} nodule ({shape}, {size}). Immediate consultation required."
+                    ultrasound_suggestion = f"ALERT: Ultrasound indicates a {n_type} nodule ({shape}, {size}). Immediate consultation required."
                 else:
                     ultrasound_suggestion = f"Ultrasound shows a {n_type} nodule ({shape}, {size}). Consult your doctor."
 
@@ -164,20 +147,19 @@ def dashboard():
         elif diagnosis == "Hypothyroidism":
             risk_score = 80
             ai_explanation = "Low thyroid hormone levels detected."
-
             recommendation = """
-✅ Treatment
+Treatment
 Levothyroxine (daily, empty stomach)
 
-🧾 What to do
+What to do
 - Take medicine same time daily
-- Avoid calcium/iron for 30–60 min
+- Avoid calcium/iron for 30-60 min
 
-🔁 Follow-up
-- Every 6–8 weeks initially
-- Then every 6–12 months
+Follow-up
+- Every 6-8 weeks initially
+- Then every 6-12 months
 
-🍎 Lifestyle
+Lifestyle
 - Balanced diet
 - Exercise regularly
 - Manage weight & fatigue
@@ -186,9 +168,8 @@ Levothyroxine (daily, empty stomach)
         elif diagnosis == "Hyperthyroidism":
             risk_score = 85
             ai_explanation = "High thyroid hormone levels detected."
-
             recommendation = """
-✅ Treatment options
+Treatment options
 
 1. Medicines
 Methimazole / Propylthiouracil
@@ -229,14 +210,10 @@ def logout():
     session.pop("user", None)
     return redirect(url_for("home"))
 
-from PIL import Image, ImageDraw, ImageFont
-import io
-import textwrap
 
 @app.route("/download_report", methods=["POST"])
 def download_report():
 
-    # ===== GET DATA FROM FORM =====
     TSH = request.form.get("TSH")
     T3 = request.form.get("T3")
     T4 = request.form.get("T4")
@@ -250,7 +227,6 @@ def download_report():
     image_volume = request.form.get("image_volume")
     image_type = request.form.get("image_type")
 
-    # ===== CREATE IMAGE =====
     img = Image.new("RGB", (900, 1400), "white")
     draw = ImageDraw.Draw(img)
 
@@ -258,134 +234,102 @@ def download_report():
         font_title = ImageFont.truetype("arial.ttf", 42)
         font = ImageFont.truetype("arial.ttf", 24)
         font_bold = ImageFont.truetype("arial.ttf", 26)
+        small_font = ImageFont.truetype("arial.ttf", 18)
     except:
-        font_title = font = font_bold = None
+        font_title = font = font_bold = small_font = None
 
     y = 40
 
-    # ===== HELPER: DRAW LINE =====
     def draw_line():
         nonlocal y
         draw.line((40, y, 860, y), fill="gray", width=2)
         y += 20
 
-    # ===== TITLE =====
     draw.text((200, y), "Thyroid Medical Report", fill="black", font=font_title)
     y += 80
     draw_line()
 
-    # ===== HORMONES =====
     draw.text((50, y), "Hormone Values", fill="black", font=font_bold)
     y += 40
-
     draw.text((50, y), f"TSH: {TSH}", fill="black", font=font); y += 30
     draw.text((50, y), f"T3: {T3}", fill="black", font=font); y += 30
     draw.text((50, y), f"T4: {T4}", fill="black", font=font); y += 40
-
     draw_line()
 
-    # ===== DIAGNOSIS =====
     draw.text((50, y), "Diagnosis", fill="black", font=font_bold)
     y += 40
-
     draw.text((50, y), f"{diagnosis}", fill="red", font=font)
     y += 30
     draw.text((50, y), f"Risk Score: {risk_score}/100", fill="black", font=font)
     y += 40
-
     draw_line()
 
-    # ===== ULTRASOUND =====
     if image_shape:
         draw.text((50, y), "Ultrasound Findings", fill="black", font=font_bold)
         y += 40
-
         draw.text((50, y), f"Shape: {image_shape}", fill="black", font=font); y += 25
         draw.text((50, y), f"Size: {image_size}", fill="black", font=font); y += 25
         draw.text((50, y), f"Area: {image_area}", fill="black", font=font); y += 25
         draw.text((50, y), f"Volume: {image_volume}", fill="black", font=font); y += 25
         draw.text((50, y), f"Type: {image_type}", fill="black", font=font)
         y += 40
-
         draw_line()
 
-    # ===== SYMPTOMS =====
     if symptoms:
         draw.text((50, y), "Symptoms", fill="black", font=font_bold)
         y += 40
-
         for line in textwrap.wrap(symptoms, width=60):
             draw.text((50, y), line, fill="black", font=font)
             y += 25
-
         y += 20
         draw_line()
 
-    # ===== RECOMMENDATION =====
     draw.text((50, y), "Doctor Recommendation", fill="black", font=font_bold)
     y += 40
 
     if diagnosis == "Hyperthyroidism":
         rec_lines = [
-            "Treatment Options:",
-            "",
+            "Treatment Options:", "",
             "1. Medicines (First Line)",
             "- Methimazole / Propylthiouracil",
-            "- Reduce hormone production",
-            "",
+            "- Reduce hormone production", "",
             "2. Symptom Control",
             "- Propranolol",
-            "- Controls heart rate, anxiety, tremors",
-            "",
+            "- Controls heart rate, anxiety, tremors", "",
             "3. Radioactive Iodine Therapy",
-            "- Reduces thyroid activity",
-            "",
+            "- Reduces thyroid activity", "",
             "4. Surgery (Rare Cases)",
             "- Large goiter",
             "- Cancer suspicion",
             "- Medication failure"
         ]
-
     elif diagnosis == "Hypothyroidism":
         rec_lines = [
             "Treatment:",
-            "- Levothyroxine (daily, empty stomach)",
-            "",
+            "- Levothyroxine (daily, empty stomach)", "",
             "What You Should Do:",
             "- Take medicine same time daily",
-            "- Avoid calcium/iron for 30–60 minutes",
-            "",
+            "- Avoid calcium/iron for 30-60 minutes", "",
             "Follow-up:",
-            "- Blood test every 6–8 weeks initially",
-            "- Then every 6–12 months",
-            "",
+            "- Blood test every 6-8 weeks initially",
+            "- Then every 6-12 months", "",
             "Lifestyle Advice:",
             "- Balanced diet",
             "- Regular exercise",
             "- Manage fatigue & weight"
         ]
-
     else:
         rec_lines = ["Maintain regular health checkups."]
 
     for line in rec_lines:
         draw.text((50, y), line, fill="black", font=font)
         y += 25
-        
-    # ===== DISCLAIMER (BOTTOM CENTER) =====
+
     disclaimer = "This AI system may make mistakes. Please consult a doctor for medical advice."
-
-    try:
-        small_font = ImageFont.truetype("arial.ttf", 18)
-    except:
-        small_font = None
-
     text_width = draw.textlength(disclaimer, font=small_font)
     x_position = (900 - text_width) // 2
-
     draw.text((x_position, 1350), disclaimer, fill="gray", font=small_font)
 
-    # ===== SAVE =====
     img_io = io.BytesIO()
     img.save(img_io, 'JPEG')
     img_io.seek(0)
@@ -397,6 +341,6 @@ def download_report():
         download_name="thyroid_report.jpg"
     )
 
+
 if __name__ == "__main__":
     app.run(debug=True)
-    
